@@ -100,12 +100,12 @@ public class CheckingMails {
    }
 
    public static void main(String[] args) {
-
+    
 //      String host = "pop.bizmail.yahoo.com";// change accordingly
       String host = "imap.mail.yahoo.com";// change accordingly
       String mailStoreType = "pop3";
-      String username = "it.support@packet-systems.com";// change accordingly
-      String password = "Kucinggarong";// change accordingly
+      String username = args[0];
+      String password = args[1];
 
       check(host, mailStoreType, username, password);
       
