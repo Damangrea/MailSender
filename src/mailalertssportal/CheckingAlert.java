@@ -31,10 +31,8 @@ import sun.security.provider.MD5;
 public class CheckingAlert {
     public static void main(String [] args) throws IOException
    {   
-//       String emailUser=args[0];
-//       String emailPassword=args[1];
-       String emailUser="damangrea.balanrayoga@packet-systems.com";
-       String emailPassword="Indonesia1945";
+       String emailUser=args[0];
+       String emailPassword=args[1];
        ArrayList<AlertCheck> listAlert = new ArrayList<>();
        Connector connector = new Connector();
        listAlert = connector.getAlertCheck();
