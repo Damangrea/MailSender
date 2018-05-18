@@ -10,9 +10,13 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.Month;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.xml.datatype.DatatypeConstants;
 import mailalertssportal.AlertCheck;
 
 /**
@@ -95,11 +99,15 @@ public class Connector {
             try {
                 Statement stmt=conn.createStatement();
                 Statement stmtupd=conn.createStatement();
-                String sQuery="select ar.id,cp.name"
+                //checkin setelah waktu
+                String sQuery="select ar.id,cp.name,cp.id cpid"
                         + " ,ar.scheduled,ar.time_start,ar.time_end"
-                        + " ,ar.checkin_time , concat(cptc.email,',',cptl.email) mailTo"
-                        + " from activity_record ar,contact_profile cp,activity_category ac,contact_employee ce"
-                        + " left join contact_profile cptc on cptc.id=ce.tc_employee_id,team t left join contact_profile cptl on cptl.id=t.team_leader_id"
+                        + " ,ar.checkin_time , cp.email mailSelf,cptc.email mailTo,cptl.email mailTo2,cpman.email mailTo3,ce.late_date,ce.late_count, ar.activity, cop.name customer "
+                        + " from activity_record ar left join company_profile cop on cop.id=ar.customer,contact_profile cp,activity_category ac,contact_employee ce"
+                        + " left join contact_profile cptc on cptc.id=ce.tc_employee_id "
+                        + " left join contact_profile cpman on cpman.id=ce.manager_employee_id "
+                        + " ,team t "
+                        + " left join contact_profile cptl on cptl.id=t.team_leader_id "
                         + " where ar.contact_profile_id=cp.id"
                         + " and ce.contact_profile_id = cp.id"
                         + " and ce.team_id=t.id"
@@ -112,18 +120,57 @@ public class Connector {
                         + " ";
                 ResultSet rs=stmt.executeQuery(sQuery);
                 AlertCheck alertCheck;
+                String cpid;
                 while (rs.next()) {
-                   alertCheck = new AlertCheck(rs.getString("Name"),rs.getString("scheduled"), rs.getString("time_start"), rs.getString("time_end"), rs.getString("checkin_time"), "CHECKIN");
+                   alertCheck = new AlertCheck(rs.getString("Name"),rs.getString("scheduled"), rs.getString("time_start"), rs.getString("time_end"), rs.getString("checkin_time"), rs.getString("customer"), rs.getString("activity"), "CHECKIN");
                    result.add(alertCheck);
-                   alertCheck.setMailTo(rs.getString("mailTo"));
+                   alertCheck.lateCount = rs.getInt("late_count")+1;
+                   alertCheck.lateDate = rs.getDate("late_date");
+                   alertCheck.setMailSelf(rs.getString("mailSelf"));
+                   cpid = rs.getString("cpid");
+                   if(alertCheck.lateDate!=null){
+                       if(monthsBetween(alertCheck.lateDate, new Date())>3){
+                           //set new first late
+                           sQuery = "update contact_employee set late_count=1 ,late_date='"+alertCheck.dateSchedule+"' where contact_profile_id="+cpid+" "; 
+                           alertCheck.lateCount=1;
+                       } else{
+                           //increment late
+                           sQuery = "update contact_employee set late_count=late_count+1  where contact_profile_id="+cpid+" "; 
+                       }
+                   }else{
+                       //first late
+                        sQuery = "update contact_employee set late_count=1 ,late_date='"+alertCheck.dateSchedule+"' where contact_profile_id="+cpid+" "; 
+                        alertCheck.lateCount=1;
+                   }
+                    System.out.println("EXECUTING UPDATE: "+sQuery);
+                   stmtupd.executeUpdate(sQuery);
+                   switch(alertCheck.lateCount){
+                       case 3:
+                            alertCheck.setMailTo3(rs.getString("mailTo3"));
+                       case 2:
+                            alertCheck.setMailTo2(rs.getString("mailTo2"));   
+                       case 1:
+                            alertCheck.setMailTo(rs.getString("mailTo"));  
+                            break;
+                       default:
+                            alertCheck.setMailTo3(rs.getString("mailTo3"));
+                            alertCheck.setMailTo2(rs.getString("mailTo2"));   
+                            alertCheck.setMailTo(rs.getString("mailTo")); 
+                            break;
+                           
+                   }
                    idActCheckin.add(rs.getString("id"));
                 }
                 
-                sQuery="select ar.id,cp.name"
+                //checkout sebelum waktu
+                sQuery="select ar.id,cp.name,cp.id cpid"
                         + " ,ar.scheduled,ar.time_start,ar.time_end"
-                        + " ,ar.checkout_time , concat(cptc.email,',',cptl.email) mailTo"
-                        + " from activity_record ar,contact_profile cp,activity_category ac,contact_employee ce"
-                        + " left join contact_profile cptc on cptc.id=ce.tc_employee_id,team t left join contact_profile cptl on cptl.id=t.team_leader_id"
+                        + " ,ar.checkout_time , cp.email mailSelf, cptc.email mailTo,cptl.email mailTo2,cpman.email mailTo3,ce.late_date,ce.late_count, ar.activity, cop.name customer "
+                        + " from activity_record ar left join company_profile cop on cop.id=ar.customer,contact_profile cp,activity_category ac,contact_employee ce"
+                        + " left join contact_profile cptc on cptc.id=ce.tc_employee_id "
+                        + " left join contact_profile cpman on cpman.id=ce.manager_employee_id "
+                        + " ,team t "
+                        + " left join contact_profile cptl on cptl.id=t.team_leader_id "
                         + " where ar.contact_profile_id=cp.id"
                         + " and ce.contact_profile_id = cp.id"
                         + " and ce.team_id=t.id"
@@ -134,11 +181,46 @@ public class Connector {
                         + " and ar.checkout_time > 0"
                         + " and ar.checkout_time < STR_TO_DATE(CONCAT(ar.scheduled, ' ',ar.time_end), '%Y-%m-%d %H:%i:%s')"
                         + " ";
+                
                 rs=stmt.executeQuery(sQuery);
                 while (rs.next()) {
-                   alertCheck = new AlertCheck(rs.getString("Name"),rs.getString("scheduled"), rs.getString("time_start"), rs.getString("time_end"), rs.getString("checkout_time"), "CHECKOUT");
+                   alertCheck = new AlertCheck(rs.getString("Name"),rs.getString("scheduled"), rs.getString("time_start"), rs.getString("time_end"), rs.getString("checkout_time"), rs.getString("customer"), rs.getString("activity"), "CHECKOUT");
                    result.add(alertCheck);
-                   alertCheck.setMailTo(rs.getString("mailTo"));
+                   alertCheck.lateCount = rs.getInt("late_count")+1;
+                   alertCheck.lateDate = rs.getDate("late_date");
+                   alertCheck.setMailSelf(rs.getString("mailSelf"));
+                   cpid = rs.getString("cpid");
+                   if(alertCheck.lateDate!=null){
+                       if(monthsBetween(alertCheck.lateDate, new Date())>3){
+                           //set new first late
+                           sQuery = "update contact_employee set late_count=1 ,late_date='"+alertCheck.dateSchedule+"' where contact_profile_id="+cpid+" "; 
+                           alertCheck.lateCount=1;
+                       } else{
+                           //increment late
+                           sQuery = "update contact_employee set late_count=late_count+1  where contact_profile_id="+cpid+" "; 
+                       }
+                   }else{
+                       //first late
+                        sQuery = "update contact_employee set late_count=1 ,late_date='"+alertCheck.dateSchedule+"' where contact_profile_id="+cpid+" "; 
+                        alertCheck.lateCount=1;
+                   }
+                   
+                System.out.println("EXECUTING UPDATE: "+sQuery);
+                   stmtupd.executeUpdate(sQuery);
+                   switch(alertCheck.lateCount){
+                       case 3:
+                            alertCheck.setMailTo3(rs.getString("mailTo3"));
+                       case 2:
+                            alertCheck.setMailTo2(rs.getString("mailTo2"));   
+                       case 1:
+                            alertCheck.setMailTo(rs.getString("mailTo")); 
+                            break;
+                       default:
+                            alertCheck.setMailTo3(rs.getString("mailTo3"));
+                            alertCheck.setMailTo2(rs.getString("mailTo2"));   
+                            alertCheck.setMailTo(rs.getString("mailTo")); 
+                            break;
+                   }
                    idActCheckout.add(rs.getString("id"));
                 }
                 
@@ -152,6 +234,7 @@ public class Connector {
                         sb.append(idActCheckin.get(i));
                     }
                     sQuery = "update activity_record set checkin_alert=1 where id in ("+sb.toString()+")";
+                System.out.println("EXECUTING UPDATE: "+sQuery);
                     stmtupd.executeUpdate(sQuery);
                 }
                 
@@ -164,6 +247,7 @@ public class Connector {
                         sb.append(idActCheckout.get(i));
                     }
                     sQuery = "update activity_record set checkout_alert=1 where id in ("+sb.toString()+")";
+                System.out.println("EXECUTING UPDATE: "+sQuery);
                     stmtupd.executeUpdate(sQuery);
                 }
                 
@@ -226,4 +310,12 @@ public class CSV {
             Logger.getLogger(Connector.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
+    private static int monthsBetween(final Date s1, final Date s2) {
+    final Calendar d1 = Calendar.getInstance();
+    d1.setTime(s1);
+    final Calendar d2 = Calendar.getInstance();
+    d2.setTime(s2);
+    int diff = (d2.get(Calendar.YEAR) - d1.get(Calendar.YEAR)) * 12 + d2.get(Calendar.MONTH) - d1.get(Calendar.MONTH);
+    return diff;
+}
 }

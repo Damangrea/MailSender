@@ -64,8 +64,9 @@ public class CheckingAlert {
 
                  // -- Set the FROM and TO fields --
                  msg.setFrom(new InternetAddress("it.support@packet-systems.com"));
-                 msg.setRecipients(Message.RecipientType.TO, InternetAddress.parse("dmg_tb@yahoo.co.id,damangrea.balanrayoga@packet-systems.com", false));
-//                 msg.setRecipients(Message.RecipientType.TO, InternetAddress.parse(alertCheck.mailTo, false));
+                 msg.setRecipients(Message.RecipientType.TO, InternetAddress.parse("damangrea.balanrayoga@packet-systems.com", false));
+//                 msg.setRecipients(Message.RecipientType.TO, InternetAddress.parse(alertCheck.getMailTo()+alertCheck.getMailTo2()+alertCheck.getMailTo3(), false));
+                 msg.setRecipients(Message.RecipientType.CC, InternetAddress.parse(alertCheck.getMailSelf(), false));
 
 
                  msg.setSubject(alertCheck.getTitle());
