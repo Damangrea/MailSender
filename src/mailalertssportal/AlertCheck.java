@@ -53,8 +53,8 @@ public class AlertCheck {
     public void setMailTo3(String mailTo) {
         this.mailTo3 = mailTo;
         //additional 
-//        this.mailTo += ",sukirin@packet-systems.com";//VP
-//        this.mailTo += ",christina.yota@packet-systems.com";//HRD
+        this.mailTo += ",sukirin@packet-systems.com";//VP
+        this.mailTo += ",christina.yota@packet-systems.com";//HRD
     }
 
     public String getMailTo3() {
